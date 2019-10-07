@@ -13,8 +13,9 @@ void foo(schedule *S, void *ud)
     }
 }
 int main(){
-    schedule *S = nullptr;
-    int arg1 = 0, arg2 = 100;
+    schedule *S = coroutine_open();
+    int arg1 = 0;
+    int arg2 = 100;
     int co1 = coroutine_new(S, foo, &arg1);
     int co2 = coroutine_new(S, foo, &arg2);
     printf("main start\n");

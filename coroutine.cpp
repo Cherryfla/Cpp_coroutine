@@ -1,27 +1,5 @@
 #include "coroutine.h"
 
-struct schedule
-{
-    char stack[STACK_SIZE];
-    ucontext_t main;
-    int nco;
-    int cap;
-    int running;
-    coroutine **co;
-};
-
-struct coroutine
-{
-    coroutine_func func;
-    void *ud;
-    ucontext_t ctx;
-    struct  schedule *sch;
-    ptrdiff_t cap;
-    ptrdiff_t size;
-    CoroutineState status;
-    char *stack;
-};
-
 coroutine* _co_new(schedule *S, coroutine_func func, void *ud)
 {
     coroutine *co = new coroutine;
@@ -44,6 +22,7 @@ void _co_delete(coroutine *co)
 schedule* coroutine_open(void)
 {
     schedule *S = (schedule *)malloc(sizeof(schedule));
+    // memset(S, 0, sizeof(schedule));
     S->nco = 0;
     S->cap = DEFAULT_COROUTINE;
     S->running = -1;
@@ -73,7 +52,7 @@ int coroutine_new(schedule *S, coroutine_func func, void *ud)
     if(S->nco >= S->cap)
     {
         int id = S->cap;
-        S->co = (coroutine **)realloc(S->co, S->cap * 2 * sizeof(coroutine*));//vector
+        S->co = (coroutine **)realloc(S->co, S->cap * 2 * sizeof(coroutine*));//函数自带拷贝，可用vector
         memset(S->co + S->cap, 0, sizeof(coroutine *) * S->cap);
         S->co[S->cap] = co;
         S->cap *= 2;
@@ -82,6 +61,7 @@ int coroutine_new(schedule *S, coroutine_func func, void *ud)
     }
     else
     {
+       // printf("%d\n",S->cap);
         for(int i=0; i < S->cap; i++)
         {
             int id = (i + S->cap) % S->cap;
@@ -96,13 +76,13 @@ int coroutine_new(schedule *S, coroutine_func func, void *ud)
     return -1;
 }
 
-static void mainfunc(uint64_t low32, u_int32_t hig32)
+static void mainfunc(void* arg)
 {
-    uintptr_t ptr = (uint32_t)low32 | ((uint64_t)hig32 << 32);
-    schedule *S = (schedule *)ptr;
+    schedule *S = (schedule*)arg;
     int id = S->running;
     coroutine *C = S->co[id];
     C->func(S, C->ud);
+//  调度完以后删除
     _co_delete(C);
     S->co[id] = nullptr;
     --S->nco;
@@ -114,11 +94,11 @@ void coroutine_resume(schedule *S, int id)
     assert(S->running == -1);
     assert(id >= 0 && id < S->cap);
     coroutine *C = S->co[id];
+    S->running = id;
     if(C == nullptr)
     {
         return;
     }
-
     int status = C->status;
     switch(status){
         case COROUTINE_READY:
@@ -127,22 +107,20 @@ void coroutine_resume(schedule *S, int id)
             C->ctx.uc_stack.ss_sp = S->stack;
             C->ctx.uc_stack.ss_size = STACK_SIZE;
             C->ctx.uc_link = &S->main;
-            S->running = id;
             C->status = COROUTINE_RUNNING;
-            uintptr_t ptr = (uintptr_t)S;
-            makecontext(&C->ctx, (void (*)(void))mainfunc, 2, (uint64_t)ptr, (uint64_t)ptr>>32);
+            makecontext(&C->ctx, (void (*)(void))mainfunc, 1, (void*)S);
             swapcontext(&S->main, &C->ctx);
             break;
         }
         case COROUTINE_SUSPEND:
         {
             memcpy(S->stack + STACK_SIZE - C->size, C->stack, C->size);
-            S->running = id;
             C->status = COROUTINE_RUNNING;
             swapcontext(&S->main, &C->ctx);
             break;
         }
         default:
+            printf("bad status: %d\n",status);
             assert(0);
     }
 }
@@ -157,6 +135,7 @@ static void _save_stack(coroutine *C, char *top)
         C->stack = (char *)malloc(C->cap);
     }
     C->size = top - &dummy;
+    //printf("in save_stack stack size:%d\n",C->size);
     memcpy(C->stack, &dummy, C->size);
 }
 

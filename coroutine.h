@@ -17,7 +17,6 @@
 #define STACK_SIZE (1024*1024)
 #define DEFAULT_COROUTINE 16
 
-
 enum CoroutineState{
     COROUTINE_DEAD, COROUTINE_READY, COROUTINE_RUNNING, COROUTINE_SUSPEND
 };
@@ -26,6 +25,28 @@ struct coroutine;
 struct schedule;
 
 typedef void (*coroutine_func)(schedule *, void *ud);
+
+struct schedule
+{
+    char stack[STACK_SIZE];
+    ucontext_t main;
+    int nco;
+    int cap;
+    int running;
+    coroutine **co;
+};
+
+struct coroutine
+{
+    coroutine_func func;
+    void *ud;
+    ucontext_t ctx;
+    struct  schedule *sch;
+    ptrdiff_t cap;
+    ptrdiff_t size;
+    CoroutineState status;
+    char *stack;
+};
 
 coroutine* _co_new(schedule *S, coroutine_func func, void *ud);
 void _co_delete(coroutine *co);

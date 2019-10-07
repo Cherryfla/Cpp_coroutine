@@ -2,4 +2,7 @@
 
 参考 [coroutine](https://github.com/cloudwu/coroutine)
 
-发现 Mac OS平台上关键接口不能用了 GG
+## 开发平台
+MacOS Mojave 10.14.6
+
+**Mac平台上实现的context貌似有点问题,当前版本不再支持context有关api**

@@ -1,15 +1,16 @@
 cc = g++
 CFLAGS = -std=c++11 -g -Wall
 
-tar:sample
-obj:coroutine.o sample.o
+obj = coroutine.o sample.o
+tar = sample
 
 $(tar):$(obj) 
-	$(cc) $(CFLAGS) $(obj) -o $(tar) $(lib)
+	$(cc) $(CFLAGS) $(obj) -o $(tar)
 
 %.o:%.cpp
 	$(cc) $(CFLAGS) -c $< -o $@
 
 .PHONY:clean
-	rm $(tar) $(obj)
+clean:
+	rm -rf $(tar) $(obj)
 
