@@ -1,12 +1,13 @@
 #ifndef _COROUTINE_H_
 #define _COROUTINE_H_
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <assert.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdint.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cassert>
+#include <cstddef>
+#include <cstring>
+#include <cstdint>
+#include <functional>
 
 #if __APPLE__ && __MACH__
     #include <sys/ucontext.h>
@@ -15,47 +16,59 @@
 #endif
 
 #define STACK_SIZE (1024*1024)
-#define DEFAULT_COROUTINE 16
 
 enum CoroutineState{
     COROUTINE_DEAD, COROUTINE_READY, COROUTINE_RUNNING, COROUTINE_SUSPEND
 };
 
-struct coroutine;
-struct schedule;
+class coroutine;
+class schedule;
 
 typedef void (*coroutine_func)(schedule *, void *ud);
+typedef void (*context_func)(void);
 
-struct schedule
+class schedule
 {
-    char stack[STACK_SIZE];
-    ucontext_t main;
-    int nco;
-    int cap;
-    int running;
-    coroutine **co;
+    private:
+        static const int DEFAULT_COROUTINE = 16;    //硬编码不合适
+        char stack[STACK_SIZE];
+        ucontext_t main;
+        int nco;
+        int cap;
+        int running;
+        coroutine **co;
+
+        void mainfunc();
+        void _save_stack(coroutine *C, char *top);
+    public:
+        schedule();
+        ~schedule();
+        int coroutine_new(coroutine_func func, void *ud);
+        void coroutine_resume(int id);
+        void coroutine_yield();
+        CoroutineState coroutine_status(int id);
+        int coroutine_running();
 };
 
-struct coroutine
+class coroutine
 {
-    coroutine_func func;
-    void *ud;
-    ucontext_t ctx;
-    struct  schedule *sch;
-    ptrdiff_t cap;
-    ptrdiff_t size;
-    CoroutineState status;
-    char *stack;
-};
+    private:
+        void *ud;
+        ucontext_t ctx;
+        struct  schedule *sch;
+        ptrdiff_t cap;
+        ptrdiff_t size;
+        CoroutineState status;
+        char *stack;
+        
+        friend class schedule;
+    public:
+        coroutine_func func;
+        coroutine();
+        coroutine(schedule *S, coroutine_func func, void *ud);
+        //coroutine(const coroutine &c);
+        ~coroutine();
 
-coroutine* _co_new(schedule *S, coroutine_func func, void *ud);
-void _co_delete(coroutine *co);
-struct schedule* coroutine_open(void);
-void coroutine_close(schedule *S);
-int coroutine_new(schedule *S, coroutine_func func, void *ud);
-void coroutine_resume(schedule *S, int id);
-void coroutine_yield(schedule *S);
-int coroutine_status(schedule *S, int id);
-int coroutine_running(schedule *S);
+};
 
 #endif
