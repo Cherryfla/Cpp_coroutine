@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstring>
 #include <cstdint>
+#include <vector>
 #include <functional>
 
 #if __APPLE__ && __MACH__
@@ -30,13 +31,13 @@ typedef void (*context_func)(void);
 class schedule
 {
     private:
-        static const int DEFAULT_COROUTINE = 16;    //硬编码不合适
+        static const int DEFAULT_COROUTINE = 16;
         char stack[STACK_SIZE];
         ucontext_t main;
         int nco;
-        int cap;
         int running;
-        coroutine **co;
+        //coroutine **co;
+        std::vector<coroutine*>co;
 
         void mainfunc();
         void _save_stack(coroutine *C, char *top);
@@ -48,11 +49,13 @@ class schedule
         void coroutine_yield();
         CoroutineState coroutine_status(int id);
         int coroutine_running();
+        int coroutine_size();
 };
 
 class coroutine
 {
     private:
+        coroutine_func func;
         void *ud;
         ucontext_t ctx;
         struct  schedule *sch;
@@ -63,10 +66,9 @@ class coroutine
         
         friend class schedule;
     public:
-        coroutine_func func;
         coroutine();
         coroutine(schedule *S, coroutine_func func, void *ud);
-        //coroutine(const coroutine &c);
+        coroutine(const coroutine &c);
         ~coroutine();
 
 };

@@ -25,5 +25,6 @@ int main(){
         S->coroutine_resume(co2);
     }
     printf("finished.\n");
+    delete S;
     return 0;
 }

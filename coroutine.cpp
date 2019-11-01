@@ -7,10 +7,21 @@ coroutine::coroutine(schedule *S, coroutine_func func, void *ud)
     this->func = func;
     this->ud = ud;
     this->sch = S;
-    this->cap = 0;
     this->size = 0;
     this->status = COROUTINE_READY;
     this->stack = nullptr;
+}
+
+coroutine::coroutine(const coroutine &c)
+{
+    this->func = c.func;
+    this->ud = c.ud;
+    this->ctx = c.ctx;
+    this->sch = c.sch;
+    this->cap = c.cap;
+    this->size = c.size;
+    this->status = c.status;
+    this->stack = c.stack;
 }
 
 coroutine::~coroutine()
@@ -35,60 +46,35 @@ void schedule::_save_stack(coroutine *C, char *top)
 
 schedule::schedule()
 {
-    //schedule *S = (schedule *)malloc(sizeof(schedule));
-    // memset(S, 0, sizeof(schedule));
-    //schedule *S = new schedule();
-    this->nco = 0;
-    this->cap = schedule::DEFAULT_COROUTINE;
     this->running = -1;
-    this->co = new coroutine *[this->cap];
-    for(int i = 0; i < this->cap; i++)
-    {
-        this->co[i] = nullptr;
-    }
-   // memset(S->co, 0, sizeof(coroutine *) * S->cap);
+    this->co.reserve(schedule::DEFAULT_COROUTINE);
 }
 
 schedule::~schedule()
 {
-    for(int i=0; i < this->cap; i++)
+    for(size_t i=0; i < this->co.size(); i++)
     {
         coroutine *co = this->co[i];
         if(co != nullptr)
             delete co;
     }
-    // free(S->co);
-	// S->co = nullptr;
-    // free(S;
-    delete [] this->co;
+    co.clear();
 }
 
 int schedule::coroutine_new(coroutine_func func, void *ud)
 {
-    coroutine *co = new coroutine(this, func, ud);
-    if(this->nco >= this->cap)  /*实际上此处只允许相等的情况*/
+    for(size_t i = 0; i < this->co.size(); i++)
     {
-        int id = this->cap;
-        this->co = (coroutine **)realloc(this->co, this->cap * 2 * sizeof(coroutine*));//函数自带拷贝，可用vector
-        memset(this->co + this->cap, 0, sizeof(coroutine *) * this->cap);
-        this->co[this->cap] = co;
-        this->cap *= 2;
-        ++this->nco;
-        return id;
-    }
-    else
-    {
-        for(int i = 0; i < this->cap; i++)
+        if(this->co[i] == nullptr)
         {
-            if(this->co[i] == nullptr)
-            {
-                this->co[i] = co;
-                ++this->nco;
-                return i;
-            }
+            ++this->nco;
+            this->co[i] = new coroutine(this, func, ud);
+            return i;
         }
     }
-    return -1;
+    ++this->nco;
+    this->co.emplace_back(new coroutine(this, func, ud));
+    return this->co.size()-1;
 }
 
 void schedule::mainfunc()
@@ -106,7 +92,7 @@ void schedule::mainfunc()
 void schedule::coroutine_resume(int id)
 {
     assert(this->running == -1);
-    assert(id >= 0 && id < this->cap);
+    assert(id >= 0 && id < (int)this->co.size());
     coroutine *C = this->co[id];
     this->running = id;
     if(C == nullptr)
@@ -156,7 +142,7 @@ void schedule::coroutine_yield()
 
 CoroutineState schedule::coroutine_status(int id)
 {
-    assert(id >= 0 && id < this->cap);
+    assert(id >= 0 && id < (int)this->co.size());
     if(this->co[id] == nullptr)
     {
         return COROUTINE_DEAD;
@@ -167,4 +153,9 @@ CoroutineState schedule::coroutine_status(int id)
 int schedule::coroutine_running()
 {
     return this->running;
+}
+
+int schedule::coroutine_size()
+{
+    return this->nco;
 }
